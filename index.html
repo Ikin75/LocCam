@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+    <title>Kamera Lokasi P3K</title>
+    <link
+      rel="manifest"
+      href="data:application/manifest+json,"
+      id="manifest-placeholder"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background: #121212;
+        color: #fff;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+      }
+      .container {
+        width: 100%;
+        max-width: 480px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .screen {
+        display: none;
+        flex-direction: column;
+        gap: 15px;
+      }
+      .screen.active {
+        display: flex;
+      }
+      button,
+      .btn {
+        background: #1e88e5;
+        color: white;
+        border: none;
+        padding: 14px 20px;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      button:disabled {
+        background: #555;
+        cursor: not-allowed;
+      }
+      .btn-outline {
+        background: transparent;
+        border: 2px solid #1e88e5;
+        color: #1e88e5;
+      }
+      input {
+        padding: 14px;
+        border-radius: 12px;
+        border: none;
+        font-size: 16px;
+        background: #1e1e1e;
+        color: white;
+      }
+      .video-container {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 3/4;
+        background: #000;
+        border-radius: 16px;
+        overflow: hidden;
+      }
+      video,
+      canvas {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .overlay {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 15px;
+        text-align: center;
+        display: none;
+      }
+      .overlay.active {
+        display: block;
+      }
+      .overlay .location {
+        font-size: 20px;
+        font-weight: bold;
+      }
+      .overlay .datetime {
+        font-size: 16px;
+      }
+      #qr-canvas {
+        display: none;
+      }
+      .result-img {
+        width: 100%;
+        border-radius: 12px;
+        margin-top: 10px;
+      }
+      .flex-row {
+        display: flex;
+        gap: 10px;
+      }
+      .flex-row button {
+        flex: 1;
+      }
+      .error {
+        color: #ff5252;
+        font-weight: bold;
+      }
+      .info {
+        background: #1e1e1e;
+        padding: 12px;
+        border-radius: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container" id="app">
+      <!-- Home Screen -->
+      <div id="home-screen" class="screen active">
+        <h2 style="text-align: center">📸 Kamera Lokasi P3K</h2>
+        <button onclick="showScreen('create-screen')">
+          🆕 Buat QR Code Lokasi
+        </button>
+        <button onclick="startScanMode()">📷 Scan QR & Ambil Foto</button>
+      </div>
+
+      <!-- Create QR Screen -->
+      <div id="create-screen" class="screen">
+        <h3>Buat QR Code Lokasi</h3>
+        <input
+          type="text"
+          id="loc-name"
+          placeholder="Nama lokasi, misal: P3K Lantai 2"
+        />
+        <button id="get-loc-btn" onclick="getLocationAndGenerate()">
+          📍 Dapatkan Lokasi & Buat QR
+        </button>
+        <div id="location-info" class="info" style="display: none"></div>
+        <div id="qr-result" style="text-align: center; display: none">
+          <canvas
+            id="qr-code-canvas"
+            width="250"
+            height="250"
+            style="background: white; padding: 10px; border-radius: 12px"
+          ></canvas>
+          <br />
+          <a
+            id="download-qr"
+            class="btn"
+            style="display: inline-block; margin-top: 10px"
+            >⬇️ Unduh QR Code</a
+          >
+        </div>
+        <button class="btn-outline" onclick="showScreen('home-screen')">
+          ⬅️ Kembali
+        </button>
+      </div>
+
+      <!-- Scan & Capture Screen -->
+      <div id="scan-screen" class="screen">
+        <h3>Scan QR Code & Ambil Foto</h3>
+        <div class="video-container">
+          <video id="video" autoplay playsinline></video>
+          <canvas id="capture-canvas" style="display: none"></canvas>
+          <div id="overlay" class="overlay">
+            <div class="location" id="overlay-location"></div>
+            <div class="datetime" id="overlay-datetime"></div>
+          </div>
+        </div>
+        <div id="scan-status" class="info">
+          🔍 Mengarahkan kamera ke QR Code...
+        </div>
+        <button id="capture-btn" style="display: none" onclick="capturePhoto()">
+          📸 Ambil Foto
+        </button>
+        <button
+          id="retry-scan-btn"
+          style="display: none"
+          class="btn-outline"
+          onclick="restartScan()"
+        >
+          🔄 Scan Ulang
+        </button>
+        <button class="btn-outline" onclick="stopCameraAndGoHome()">
+          ⬅️ Kembali
+        </button>
+        <div id="photo-result" style="display: none">
+          <img id="result-image" class="result-img" alt="Hasil Foto" />
+          <a
+            id="download-photo"
+            class="btn"
+            style="display: block; text-align: center; margin-top: 8px"
+            >⬇️ Unduh Foto</a
+          >
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script>
+      // ==================== GLOBAL STATE ====================
+      let currentStream = null;
+      let scanInterval = null;
+      let qrData = null; // { n, lat, lng }
+      const RADIUS_LIMIT = 100; // meter
+
+      // ==================== NAVIGATION ====================
+      function showScreen(screenId) {
+        document
+          .querySelectorAll(".screen")
+          .forEach((s) => s.classList.remove("active"));
+        document.getElementById(screenId).classList.add("active");
+        if (screenId !== "scan-screen") stopCamera();
+        if (screenId === "scan-screen") {
+          document.getElementById("capture-btn").style.display = "none";
+          document.getElementById("retry-scan-btn").style.display = "none";
+          document.getElementById("photo-result").style.display = "none";
+          document.getElementById("overlay").classList.remove("active");
+          document.getElementById("scan-status").innerText =
+            "🔍 Mengarahkan kamera ke QR Code...";
+          document.getElementById("scan-status").style.display = "block";
+        }
+      }
+
+      // ==================== CAMERA & SCAN ====================
+      async function startScanMode() {
+        showScreen("scan-screen");
+        try {
+          currentStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: "environment",
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+            audio: false,
+          });
+          const video = document.getElementById("video");
+          video.srcObject = currentStream;
+          video.play();
+          startQRScanner();
+        } catch (err) {
+          alert("Gagal mengakses kamera: " + err.message);
+          showScreen("home-screen");
+        }
+      }
+
+      function startQRScanner() {
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("capture-canvas");
+        const ctx = canvas.getContext("2d");
+
+        function scanTick() {
+          if (!currentStream) return;
+          if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(
+              0,
+              0,
+              canvas.width,
+              canvas.height,
+            );
+            const code = jsQR(imageData.data, canvas.width, canvas.height);
+            if (code) {
+              handleQRCode(code.data);
+              return; // stop scanning after first detection
+            }
+          }
+          scanInterval = requestAnimationFrame(scanTick);
+        }
+        scanTick();
+      }
+
+      async function handleQRCode(data) {
+        // Stop scanning UI
+        if (scanInterval) cancelAnimationFrame(scanInterval);
+        document.getElementById("scan-status").innerText =
+          "✅ QR Code terdeteksi. Verifikasi lokasi...";
+
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.lat == null || parsed.lng == null || !parsed.n)
+            throw new Error("Data tidak lengkap");
+          qrData = { name: parsed.n, lat: parsed.lat, lng: parsed.lng };
+
+          // Get current position
+          const position = await getCurrentPosition();
+          const distance = calculateDistance(
+            position.coords.latitude,
+            position.coords.longitude,
+            qrData.lat,
+            qrData.lng,
+          );
+
+          if (distance > RADIUS_LIMIT) {
+            alert(
+              `⚠️ Anda terlalu jauh dari lokasi! Jarak: ${Math.round(distance)} meter (batas ${RADIUS_LIMIT} m). Tidak dapat mengambil foto.`,
+            );
+            restartScan();
+            return;
+          }
+
+          // Success: show overlay with location name and real-time date
+          document.getElementById("scan-status").style.display = "none";
+          document.getElementById("overlay-location").innerText = qrData.name;
+          updateOverlayTime();
+          document.getElementById("overlay").classList.add("active");
+          document.getElementById("capture-btn").style.display = "block";
+          document.getElementById("retry-scan-btn").style.display = "block";
+
+          // Update time every second
+          window._overlayTimer = setInterval(updateOverlayTime, 1000);
+        } catch (e) {
+          alert("QR Code tidak valid: " + e.message);
+          restartScan();
+        }
+      }
+
+      function updateOverlayTime() {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString("id-ID", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        });
+        const timeStr = now.toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+        document.getElementById("overlay-datetime").innerText =
+          `${dateStr} • ${timeStr}`;
+      }
+
+      function restartScan() {
+        if (window._overlayTimer) clearInterval(window._overlayTimer);
+        document.getElementById("overlay").classList.remove("active");
+        document.getElementById("capture-btn").style.display = "none";
+        document.getElementById("retry-scan-btn").style.display = "none";
+        document.getElementById("photo-result").style.display = "none";
+        document.getElementById("scan-status").style.display = "block";
+        document.getElementById("scan-status").innerText =
+          "🔍 Mengarahkan kamera ke QR Code...";
+        qrData = null;
+        startQRScanner();
+      }
+
+      function stopCamera() {
+        if (scanInterval) cancelAnimationFrame(scanInterval);
+        if (window._overlayTimer) clearInterval(window._overlayTimer);
+        if (currentStream) {
+          currentStream.getTracks().forEach((track) => track.stop());
+          currentStream = null;
+        }
+      }
+
+      function stopCameraAndGoHome() {
+        stopCamera();
+        showScreen("home-screen");
+      }
+
+      // ==================== CAPTURE PHOTO ====================
+      function capturePhoto() {
+        if (!qrData) return;
+        const video = document.getElementById("video");
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0);
+
+        // Add overlay text
+        const now = new Date();
+        const dateStr = now.toLocaleDateString("id-ID", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        });
+        const timeStr = now.toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+        const text1 = qrData.name;
+        const text2 = `${dateStr} • ${timeStr}`;
+
+        ctx.font = 'bold 36px "Segoe UI", sans-serif';
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        const textWidth1 = ctx.measureText(text1).width;
+        const textWidth2 = ctx.measureText(text2).width;
+        const maxWidth = Math.max(textWidth1, textWidth2) + 40;
+        const boxHeight = 100;
+        const x = (canvas.width - maxWidth) / 2;
+        const y = canvas.height - boxHeight - 20;
+
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(x, y, maxWidth, boxHeight);
+        ctx.fillStyle = "white";
+        ctx.textAlign = "center";
+        ctx.fillText(text1, canvas.width / 2, y + 40);
+        ctx.font = '24px "Segoe UI", sans-serif';
+        ctx.fillText(text2, canvas.width / 2, y + 75);
+
+        // Show result
+        const img = document.getElementById("result-image");
+        img.src = canvas.toDataURL("image/jpeg", 0.9);
+        document.getElementById("photo-result").style.display = "block";
+
+        // Download link
+        const downloadLink = document.getElementById("download-photo");
+        downloadLink.href = img.src;
+        downloadLink.download = `foto-${qrData.name.replace(/\s/g, "_")}-${Date.now()}.jpg`;
+      }
+
+      // ==================== CREATE QR ====================
+      async function getLocationAndGenerate() {
+        const name = document.getElementById("loc-name").value.trim();
+        if (!name) return alert("Masukkan nama lokasi terlebih dahulu.");
+
+        const btn = document.getElementById("get-loc-btn");
+        btn.disabled = true;
+        btn.innerText = "Mendapatkan lokasi...";
+
+        try {
+          const position = await getCurrentPosition();
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+
+          document.getElementById("location-info").style.display = "block";
+          document.getElementById("location-info").innerHTML =
+            `📍 Lokasi: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+          const qrPayload = JSON.stringify({
+            n: name,
+            lat,
+            lng,
+            t: new Date().toISOString(),
+          });
+          const qrCanvas = document.getElementById("qr-code-canvas");
+          qrCanvas.innerHTML = ""; // clear
+          new QRCode(qrCanvas, {
+            text: qrPayload,
+            width: 250,
+            height: 250,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H,
+          });
+
+          document.getElementById("qr-result").style.display = "block";
+
+          // Prepare download
+          setTimeout(() => {
+            const dataUrl = qrCanvas.toDataURL("image/png");
+            document.getElementById("download-qr").href = dataUrl;
+            document.getElementById("download-qr").download =
+              `QR-${name.replace(/\s/g, "_")}.png`;
+          }, 500);
+        } catch (err) {
+          alert("Gagal mendapatkan lokasi: " + err.message);
+        } finally {
+          btn.disabled = false;
+          btn.innerText = "📍 Dapatkan Lokasi & Buat QR";
+        }
+      }
+
+      // ==================== UTILS ====================
+      function getCurrentPosition() {
+        return new Promise((resolve, reject) => {
+          if (!navigator.geolocation)
+            reject(new Error("Geolokasi tidak didukung"));
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+          });
+        });
+      }
+
+      function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371e3; // metres
+        const φ1 = (lat1 * Math.PI) / 180;
+        const φ2 = (lat2 * Math.PI) / 180;
+        const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+        const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+        const a =
+          Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+          Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c; // in metres
+      }
+
+      // ==================== PWA MANIFEST ====================
+      (function () {
+        const manifest = {
+          name: "Kamera P3K Lokasi",
+          short_name: "P3K Cam",
+          start_url: ".",
+          display: "standalone",
+          background_color: "#121212",
+          theme_color: "#1e88e5",
+          icons: [
+            {
+              src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📸</text></svg>",
+              sizes: "100x100",
+              type: "image/svg+xml",
+            },
+          ],
+        };
+        const blob = new Blob([JSON.stringify(manifest)], {
+          type: "application/json",
+        });
+        document.getElementById("manifest-placeholder").href =
+          URL.createObjectURL(blob);
+      })();
+
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker
+          .register("sw.js")
+          .catch(() => console.log("SW registered"));
+      }
+    </script>
+  </body>
+</html>
