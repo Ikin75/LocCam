@@ -7,11 +7,7 @@
       content="width=device-width, initial-scale=1.0, user-scalable=no"
     />
     <title>Kamera Lokasi P3K</title>
-    <link
-      rel="manifest"
-      href="data:application/manifest+json,"
-      id="manifest-placeholder"
-    />
+    <link rel="manifest" href="/manifest.json" />
     <style>
       * {
         box-sizing: border-box;
@@ -536,33 +532,8 @@
       }
 
       // ==================== PWA MANIFEST ====================
-      (function () {
-        const manifest = {
-          name: "Kamera P3K Lokasi",
-          short_name: "P3K Cam",
-          start_url: ".",
-          display: "standalone",
-          background_color: "#121212",
-          theme_color: "#1e88e5",
-          icons: [
-            {
-              src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📸</text></svg>",
-              sizes: "100x100",
-              type: "image/svg+xml",
-            },
-          ],
-        };
-        const blob = new Blob([JSON.stringify(manifest)], {
-          type: "application/json",
-        });
-        document.getElementById("manifest-placeholder").href =
-          URL.createObjectURL(blob);
-      })();
-
       if ("serviceWorker" in navigator) {
-        navigator.serviceWorker
-          .register("sw.js")
-          .catch(() => console.log("SW registered"));
+        navigator.serviceWorker.register("/sw.js");
       }
     </script>
   </body>

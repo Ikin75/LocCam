@@ -1,7 +1,8 @@
-const CACHE_NAME = "loc-cam-v1";
+const CACHE_NAME = "p3k-cam-v1";
 const ASSETS = [
   "/",
   "/index.html",
+  "/manifest.json",
   "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js",
   "https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js",
 ];
