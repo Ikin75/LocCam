@@ -54,6 +54,9 @@
         font-weight: 600;
         cursor: pointer;
         transition: background 0.2s;
+        text-decoration: none;
+        display: inline-block;
+        text-align: center;
       }
       button:disabled {
         background: #555;
@@ -80,11 +83,13 @@
         border-radius: 16px;
         overflow: hidden;
       }
-      video,
-      canvas {
+      video {
         width: 100%;
         height: 100%;
         object-fit: cover;
+      } /* Tetap cover agar layar penuh, tapi resolusi tinggi mengurangi blur */
+      canvas {
+        display: none;
       }
       .overlay {
         position: absolute;
@@ -95,6 +100,7 @@
         padding: 15px;
         text-align: center;
         display: none;
+        z-index: 2;
       }
       .overlay.active {
         display: block;
@@ -105,9 +111,6 @@
       }
       .overlay .datetime {
         font-size: 16px;
-      }
-      #qr-canvas {
-        display: none;
       }
       .result-img {
         width: 100%;
@@ -128,6 +131,11 @@
       .info {
         background: #1e1e1e;
         padding: 12px;
+        border-radius: 12px;
+      }
+      #qr-code-container {
+        background: white;
+        display: inline-block;
         border-radius: 12px;
       }
     </style>
@@ -156,12 +164,11 @@
         </button>
         <div id="location-info" class="info" style="display: none"></div>
         <div id="qr-result" style="text-align: center; display: none">
-          <canvas
-            id="qr-code-canvas"
-            width="250"
-            height="250"
-            style="background: white; padding: 10px; border-radius: 12px"
-          ></canvas>
+          <!-- Gunakan div, bukan canvas -->
+          <div
+            id="qr-code-container"
+            style="width: 250px; height: 250px; display: inline-block"
+          ></div>
           <br />
           <a
             id="download-qr"
@@ -180,7 +187,7 @@
         <h3>Scan QR Code & Ambil Foto</h3>
         <div class="video-container">
           <video id="video" autoplay playsinline></video>
-          <canvas id="capture-canvas" style="display: none"></canvas>
+          <canvas id="capture-canvas"></canvas>
           <div id="overlay" class="overlay">
             <div class="location" id="overlay-location"></div>
             <div class="datetime" id="overlay-datetime"></div>
@@ -242,25 +249,44 @@
         }
       }
 
-      // ==================== CAMERA & SCAN ====================
+      // ==================== CAMERA & SCAN (Resolusi tinggi) ====================
       async function startScanMode() {
         showScreen("scan-screen");
         try {
+          // Minta resolusi tinggi, ideal 1920x1080, fallback ke ukuran apapun
           currentStream = await navigator.mediaDevices.getUserMedia({
             video: {
               facingMode: "environment",
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+              // Beberapa perangkat mendukung focusMode, tidak wajib
+              advanced: [{ focusMode: "continuous" }],
             },
             audio: false,
           });
           const video = document.getElementById("video");
           video.srcObject = currentStream;
-          video.play();
+          await video.play();
           startQRScanner();
         } catch (err) {
-          alert("Gagal mengakses kamera: " + err.message);
-          showScreen("home-screen");
+          // Jika gagal, coba tanpa advanced constraint
+          try {
+            currentStream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                facingMode: "environment",
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+              },
+              audio: false,
+            });
+            const video = document.getElementById("video");
+            video.srcObject = currentStream;
+            await video.play();
+            startQRScanner();
+          } catch (e2) {
+            alert("Gagal mengakses kamera: " + err.message);
+            showScreen("home-screen");
+          }
         }
       }
 
@@ -293,7 +319,6 @@
       }
 
       async function handleQRCode(data) {
-        // Stop scanning UI
         if (scanInterval) cancelAnimationFrame(scanInterval);
         document.getElementById("scan-status").innerText =
           "✅ QR Code terdeteksi. Verifikasi lokasi...";
@@ -304,7 +329,6 @@
             throw new Error("Data tidak lengkap");
           qrData = { name: parsed.n, lat: parsed.lat, lng: parsed.lng };
 
-          // Get current position
           const position = await getCurrentPosition();
           const distance = calculateDistance(
             position.coords.latitude,
@@ -321,7 +345,6 @@
             return;
           }
 
-          // Success: show overlay with location name and real-time date
           document.getElementById("scan-status").style.display = "none";
           document.getElementById("overlay-location").innerText = qrData.name;
           updateOverlayTime();
@@ -329,7 +352,6 @@
           document.getElementById("capture-btn").style.display = "block";
           document.getElementById("retry-scan-btn").style.display = "block";
 
-          // Update time every second
           window._overlayTimer = setInterval(updateOverlayTime, 1000);
         } catch (e) {
           alert("QR Code tidak valid: " + e.message);
@@ -390,7 +412,6 @@
         const ctx = canvas.getContext("2d");
         ctx.drawImage(video, 0, 0);
 
-        // Add overlay text
         const now = new Date();
         const dateStr = now.toLocaleDateString("id-ID", {
           day: "2-digit",
@@ -406,7 +427,6 @@
         const text2 = `${dateStr} • ${timeStr}`;
 
         ctx.font = 'bold 36px "Segoe UI", sans-serif';
-        ctx.fillStyle = "rgba(0,0,0,0.5)";
         const textWidth1 = ctx.measureText(text1).width;
         const textWidth2 = ctx.measureText(text2).width;
         const maxWidth = Math.max(textWidth1, textWidth2) + 40;
@@ -422,18 +442,16 @@
         ctx.font = '24px "Segoe UI", sans-serif';
         ctx.fillText(text2, canvas.width / 2, y + 75);
 
-        // Show result
         const img = document.getElementById("result-image");
         img.src = canvas.toDataURL("image/jpeg", 0.9);
         document.getElementById("photo-result").style.display = "block";
 
-        // Download link
         const downloadLink = document.getElementById("download-photo");
         downloadLink.href = img.src;
         downloadLink.download = `foto-${qrData.name.replace(/\s/g, "_")}-${Date.now()}.jpg`;
       }
 
-      // ==================== CREATE QR ====================
+      // ==================== CREATE QR (FIX dengan div) ====================
       async function getLocationAndGenerate() {
         const name = document.getElementById("loc-name").value.trim();
         if (!name) return alert("Masukkan nama lokasi terlebih dahulu.");
@@ -457,9 +475,11 @@
             lng,
             t: new Date().toISOString(),
           });
-          const qrCanvas = document.getElementById("qr-code-canvas");
-          qrCanvas.innerHTML = ""; // clear
-          new QRCode(qrCanvas, {
+          const container = document.getElementById("qr-code-container");
+          container.innerHTML = ""; // bersihkan isi sebelumnya
+
+          // Buat QR Code di dalam div container
+          new QRCode(container, {
             text: qrPayload,
             width: 250,
             height: 250,
@@ -470,12 +490,17 @@
 
           document.getElementById("qr-result").style.display = "block";
 
-          // Prepare download
+          // Siapkan tombol unduh (mengambil canvas yang dibuat oleh library di dalam container)
           setTimeout(() => {
-            const dataUrl = qrCanvas.toDataURL("image/png");
-            document.getElementById("download-qr").href = dataUrl;
-            document.getElementById("download-qr").download =
-              `QR-${name.replace(/\s/g, "_")}.png`;
+            const qrCanvas = container.querySelector("canvas");
+            if (qrCanvas) {
+              const dataUrl = qrCanvas.toDataURL("image/png");
+              document.getElementById("download-qr").href = dataUrl;
+              document.getElementById("download-qr").download =
+                `QR-${name.replace(/\s/g, "_")}.png`;
+            } else {
+              console.warn("Canvas QR tidak ditemukan");
+            }
           }, 500);
         } catch (err) {
           alert("Gagal mendapatkan lokasi: " + err.message);
@@ -498,7 +523,7 @@
       }
 
       function calculateDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371e3; // metres
+        const R = 6371e3;
         const φ1 = (lat1 * Math.PI) / 180;
         const φ2 = (lat2 * Math.PI) / 180;
         const Δφ = ((lat2 - lat1) * Math.PI) / 180;
@@ -507,7 +532,7 @@
           Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
           Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c; // in metres
+        return R * c;
       }
 
       // ==================== PWA MANIFEST ====================
