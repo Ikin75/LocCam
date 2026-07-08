@@ -472,9 +472,11 @@
             t: new Date().toISOString(),
           });
           const container = document.getElementById("qr-code-container");
-          container.innerHTML = ""; // bersihkan isi sebelumnya
+          // Tampilkan container dulu agar memiliki dimensi
+          document.getElementById("qr-result").style.display = "block";
+          container.innerHTML = ""; // bersihkan
 
-          // Buat QR Code di dalam div container
+          // Buat QR Code di dalam div container (sekarang sudah visible)
           new QRCode(container, {
             text: qrPayload,
             width: 250,
@@ -483,8 +485,6 @@
             colorLight: "#ffffff",
             correctLevel: QRCode.CorrectLevel.H,
           });
-
-          document.getElementById("qr-result").style.display = "block";
 
           // Siapkan tombol unduh (mengambil canvas yang dibuat oleh library di dalam container)
           setTimeout(() => {
