@@ -163,7 +163,13 @@
           <!-- Gunakan div, bukan canvas -->
           <div
             id="qr-code-container"
-            style="width: 250px; height: 250px; display: inline-block"
+            style="
+              width: 250px;
+              height: 250px;
+              display: inline-block;
+              background: white;
+              border-radius: 12px;
+            "
           ></div>
           <br />
           <a
@@ -472,19 +478,33 @@
             t: new Date().toISOString(),
           });
           const container = document.getElementById("qr-code-container");
-          // Tampilkan container dulu agar memiliki dimensi
+          // Tampilkan kontainer
           document.getElementById("qr-result").style.display = "block";
-          container.innerHTML = ""; // bersihkan
-
-          // Buat QR Code di dalam div container (sekarang sudah visible)
-          new QRCode(container, {
-            text: qrPayload,
-            width: 250,
-            height: 250,
-            colorDark: "#000000",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.H,
-          });
+          container.innerHTML = "";
+          // Pastikan container sudah dirender (force layout)
+          container.style.width = "250px";
+          container.style.height = "250px";
+          // Beri sedikit jeda agar DOM siap
+          setTimeout(() => {
+            new QRCode(container, {
+              text: qrPayload,
+              width: 250,
+              height: 250,
+              colorDark: "#000000",
+              colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.H,
+            });
+            // Setup download setelah QR tergambar
+            setTimeout(() => {
+              const qrCanvas = container.querySelector("canvas");
+              if (qrCanvas) {
+                const dataUrl = qrCanvas.toDataURL("image/png");
+                document.getElementById("download-qr").href = dataUrl;
+                document.getElementById("download-qr").download =
+                  `QR-${name.replace(/\s/g, "_")}.png`;
+              }
+            }, 500);
+          }, 100);
 
           // Siapkan tombol unduh (mengambil canvas yang dibuat oleh library di dalam container)
           setTimeout(() => {

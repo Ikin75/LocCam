@@ -1,11 +1,13 @@
-const CACHE_NAME = "p3k-cam-v2"; // ganti versi agar cache lama terhapus
+const CACHE_NAME = "p3k-cam-v3";
 const ASSETS = [
   "/",
   "/index.html",
   "/manifest.json",
+  "/icon.svg", // jika pakai file SVG
   "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js",
   "https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js",
 ];
+// ... sisa kode seperti sebelumnya
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
